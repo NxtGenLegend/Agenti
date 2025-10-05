@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0a1628;
+  --foreground: #ededed;
+
+  /* Agenti Brand Colors */
+  --navy-darkest: #0a1628;
+  --navy-medium: #0f2847;
+  --navy-light: #1e3a5f;
+  --cyan-bright: #00d4ff;
+  --blue-light: #60a5fa;
+  --blue-standard: #3b82f6;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-jetbrains: var(--font-jetbrains-mono);
+
+  /* Custom Agenti colors */
+  --color-navy-darkest: #0a1628;
+  --color-navy-medium: #0f2847;
+  --color-navy-light: #1e3a5f;
+  --color-cyan-bright: #00d4ff;
+  --color-blue-light: #60a5fa;
+  --color-blue-standard: #3b82f6;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
