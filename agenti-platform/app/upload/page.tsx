@@ -44,7 +44,7 @@ export default function UploadPage() {
     }
   };
 
-  const handleFileUpload = (file: File) => {
+  const handleFileUpload = (_file: File) => {
     setIsUploading(true);
 
     // Simulate upload animation
