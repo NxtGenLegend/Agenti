@@ -1,5 +1,4 @@
 import Link from "next/link";
-import LiquidEther from "./components/LiquidEther";
 
 export default function Home() {
   return (
@@ -39,26 +38,6 @@ export default function Home() {
 
       {/* Hero Section - Full Screen */}
       <section className="relative h-screen flex items-center justify-center">
-        {/* LiquidEther Background */}
-        <div className="absolute inset-0 z-0">
-          <LiquidEther
-            colors={['#2f68c4', '#4d84c8', '#00a8cc']}
-            mouseForce={20}
-            cursorSize={100}
-            isViscous={false}
-            viscous={30}
-            iterationsViscous={32}
-            iterationsPoisson={32}
-            resolution={0.5}
-            isBounce={false}
-            autoDemo={true}
-            autoSpeed={0.5}
-            autoIntensity={2.2}
-            takeoverDuration={0.25}
-            autoResumeDelay={3000}
-            autoRampDuration={0.6}
-          />
-        </div>
 
         {/* Hero Content */}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">

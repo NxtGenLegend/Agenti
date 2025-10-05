@@ -184,7 +184,7 @@ export default function PricingPage() {
               What happens if I exceed my API call limit?
             </h3>
             <p className="text-gray-400">
-              Your agents will continue to work, but you'll be charged $0.01 per 100 additional API calls. You can also upgrade your plan for higher limits.
+              Your agents will continue to work, but you&apos;ll be charged $0.01 per 100 additional API calls. You can also upgrade your plan for higher limits.
             </p>
           </div>
 
