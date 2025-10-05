@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey, JSON
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey, JSON, LargeBinary
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, relationship
 import datetime
@@ -24,10 +24,12 @@ class Agent(Base):
     name = Column(String, nullable=False, unique=True)
     description = Column(Text, nullable=True)
     repo_url = Column(String, nullable=False)
-    code_path = Column(String, nullable=False)  # Local path to cloned repo
-    developer_secrets = Column(JSON, nullable=True)  # API keys set by developer
+    code_path = Column(String, nullable=False)  
+    developer_secrets = Column(JSON, nullable=True) 
+    embedding = Column(LargeBinary, nullable=True)  
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
+    # Relationships
     deployments = relationship("Deployment", back_populates="agent", cascade="all, delete-orphan")
 
 
@@ -40,8 +42,8 @@ class Deployment(Base):
     id = Column(Integer, primary_key=True, index=True)
     agent_id = Column(Integer, ForeignKey("agents.id"), nullable=False)
     api_key = Column(String, unique=True, nullable=False, index=True)
-    user_secrets = Column(JSON, nullable=True)  # API keys set by user
-    status = Column(String, default="active")  # active, stopped
+    user_secrets = Column(JSON, nullable=True) 
+    status = Column(String, default="active")  
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     
     agent = relationship("Agent", back_populates="deployments")

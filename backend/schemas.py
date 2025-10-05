@@ -25,6 +25,7 @@ class DeploymentCreate(BaseModel):
     """Request to deploy an agent"""
     user_secrets: Optional[Dict[str, str]] = Field(None, example={"USER_API_KEY": "abc123"}) # type: ignore
 
+
 class DeploymentResponse(BaseModel):
     """Response when deploying an agent"""
     id: int
@@ -56,3 +57,11 @@ class ExecuteResponse(BaseModel):
     success: bool
     output: Dict[str, Any]
     error: Optional[str] = None
+
+class AgentSearchResponse(BaseModel):
+    """Response for agent search with similarity score"""
+    agent: AgentResponse
+    similarity_score: float = Field(..., description="Similarity score (0-1, higher is better)")
+
+    class Config:
+        orm_mode = True

@@ -1,10 +1,11 @@
-from fastapi import FastAPI, Depends, HTTPException, Header
+from fastapi import FastAPI, Depends, HTTPException, Header, Query
 from sqlalchemy.orm import Session
 from typing import List, Optional
 import secrets
 
 from . import config, schemas, database
 from .agent_manager import agent_manager
+from .embeddings import embedding_service
 
 database.create_db_and_tables()
 
@@ -13,6 +14,7 @@ app = FastAPI(
     version=config.APP_VERSION,
     description=config.APP_DESCRIPTION
 )
+
 
 def get_db():
     """Database session dependency"""
@@ -32,6 +34,7 @@ def read_root():
             "agents": {
                 "POST /agents": "Upload a new agent",
                 "GET /agents": "List all available agents",
+                "GET /agents/search": "Search agents with natural language",
                 "GET /agents/{id}": "Get agent details",
                 "DELETE /agents/{id}": "Delete an agent"
             },
@@ -57,6 +60,8 @@ def upload_agent(agent: schemas.AgentUpload, db: Session = Depends(get_db)):
     
     You can optionally provide developer_secrets (API keys, credentials) that will be
     available to the agent as environment variables during execution.
+    
+    The agent's name and description are used to generate embeddings for semantic search.
     """
     existing = db.query(database.Agent).filter(database.Agent.name == agent.name).first()
     if existing:
@@ -65,12 +70,16 @@ def upload_agent(agent: schemas.AgentUpload, db: Session = Depends(get_db)):
     try:
         code_path = agent_manager.upload_agent(agent.name, agent.repo_url)
         
+        search_text = f"{agent.name}. {agent.description or ''}"
+        embedding = embedding_service.generate_embedding(search_text)
+        
         db_agent = database.Agent(
             name=agent.name,
             description=agent.description,
             repo_url=agent.repo_url,
             code_path=code_path,
-            developer_secrets=agent.developer_secrets or {}
+            developer_secrets=agent.developer_secrets or {},
+            embedding=embedding
         )
         db.add(db_agent)
         db.commit()
@@ -80,7 +89,6 @@ def upload_agent(agent: schemas.AgentUpload, db: Session = Depends(get_db)):
         
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
-
 
 @app.get("/agents", response_model=List[schemas.AgentResponse])
 def list_agents(db: Session = Depends(get_db)):
@@ -92,6 +100,53 @@ def list_agents(db: Session = Depends(get_db)):
     return agents
 
 
+@app.get("/agents/search", response_model=List[schemas.AgentSearchResponse])
+def search_agents(
+    query: str = Query(..., description="Natural language search query", min_length=1),
+    limit: int = Query(5, description="Number of results to return", ge=1, le=20),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for agents using natural language.
+    
+    Uses semantic search with embeddings to find agents matching your description.
+    
+    Examples:
+    - "I need an agent that gets weather data"
+    - "find me a translator"
+    - "agent for sending emails"
+    - "image analysis bot"
+    
+    Returns agents ranked by similarity score (higher is better match).
+    """
+    query_text = query.strip()
+    query_embedding_bytes = embedding_service.generate_embedding(query_text)
+    query_embedding = embedding_service.deserialize_embedding(query_embedding_bytes)
+    
+    agents = db.query(database.Agent).filter(database.Agent.embedding.isnot(None)).all()
+    
+    if not agents:
+        return []
+    
+    agent_embeddings = [(agent.id, agent.embedding) for agent in agents]
+    
+    similar_agent_ids = embedding_service.find_most_similar(
+        query_embedding, 
+        agent_embeddings, # type: ignore
+        top_k=limit
+    )
+    
+    results = []
+    for agent_id, similarity_score in similar_agent_ids:
+        agent = db.query(database.Agent).filter(database.Agent.id == agent_id).first()
+        if agent:
+            results.append(schemas.AgentSearchResponse(
+                agent=agent,
+                similarity_score=similarity_score
+            ))
+    
+    return results
+
 @app.get("/agents/{agent_id}", response_model=schemas.AgentResponse)
 def get_agent(agent_id: int, db: Session = Depends(get_db)):
     """Get details of a specific agent"""
@@ -99,7 +154,6 @@ def get_agent(agent_id: int, db: Session = Depends(get_db)):
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
     return agent
-
 
 @app.delete("/agents/{agent_id}")
 def delete_agent(agent_id: int, db: Session = Depends(get_db)):
@@ -133,7 +187,7 @@ def deploy_agent(agent_id: int, deployment: schemas.DeploymentCreate = None, db:
     agent = db.query(database.Agent).filter(database.Agent.id == agent_id).first()
     if not agent:
         raise HTTPException(status_code=404, detail="Agent not found")
-
+    
     api_key = f"ak_{secrets.token_urlsafe(32)}"
     
     user_secrets = deployment.user_secrets if deployment else None
@@ -149,7 +203,6 @@ def deploy_agent(agent_id: int, deployment: schemas.DeploymentCreate = None, db:
     db.refresh(deployment_record)
     
     return deployment_record
-
 
 @app.get("/deployments", response_model=List[schemas.DeploymentListResponse])
 def list_deployments(db: Session = Depends(get_db)):
@@ -174,7 +227,6 @@ def list_deployments(db: Session = Depends(get_db)):
     
     return result
 
-
 @app.delete("/deployments/{deployment_id}")
 def stop_deployment(deployment_id: int, db: Session = Depends(get_db)):
     """
@@ -192,9 +244,6 @@ def stop_deployment(deployment_id: int, db: Session = Depends(get_db)):
     db.commit()
     
     return {"message": "Deployment stopped successfully"}
-
-
-# ============= EXECUTION ENDPOINT (For End Users) =============
 
 @app.post("/api/execute", response_model=schemas.ExecuteResponse)
 def execute_agent(
@@ -221,7 +270,6 @@ def execute_agent(
             detail="Missing X-API-Key header"
         )
     
-    # Find deployment by API key
     deployment = db.query(database.Deployment).filter(
         database.Deployment.api_key == x_api_key,
         database.Deployment.status == "active"
@@ -233,11 +281,9 @@ def execute_agent(
             detail="Invalid or inactive API key"
         )
     
-    # Get the agent
     agent = deployment.agent
     
     try:
-        # Merge secrets: developer_secrets + user_secrets (user secrets override)
         all_secrets = {}
         if agent.developer_secrets:
             all_secrets.update(agent.developer_secrets)
